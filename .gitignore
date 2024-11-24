@@ -1,0 +1,21 @@
+# Flutter/Dart specific
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/pubspec.lock
+
+# Node.js specific
+**/node_modules/
+**/npm-debug.log
+**/.env
+
+# IDE specific
+**/.idea/
+**/.vscode/
+**/*.iml
+
+# System Files
+.DS_Store
+Thumbs.db
