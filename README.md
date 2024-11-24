@@ -16,6 +16,28 @@ Um jogo de Truco multiplayer em tempo real desenvolvido com Flutter (web) e Node
   - Node.js:
     - express
     - socket.io
+    - cors
+
+## Regras do Jogo
+
+1. Cada jogador recebe 3 cartas por mão
+2. Jogadores se alternam jogando uma carta por vez
+3. Ranking das cartas (da mais alta para mais baixa):
+   - 3
+   - 2
+   - A (Ás)
+   - K (Rei)
+   - J (Valete)
+   - Q (Dama)
+   - 7
+   - 6
+   - 5
+   - 4
+
+4. Vencedor da Rodada:
+   - O jogador que jogar a carta mais alta vence a rodada
+   - Primeiro a vencer 2 rodadas ganha a mão
+   - Ganhar uma mão vale 1 ponto
 
 ## Estrutura do Projeto
 
