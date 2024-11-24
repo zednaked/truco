@@ -31,6 +31,8 @@ class GameState extends ChangeNotifier {
   List<PlayingCard> cards = [];
   late IO.Socket socket;
   bool isWaiting = false;
+  Map<String, PlayingCard> playedCards = {};  // Track played cards by player ID
+  String? myId;  // Store player's socket ID
 
   void connect() {
     socket = IO.io('http://localhost:3001', <String, dynamic>{
@@ -43,6 +45,7 @@ class GameState extends ChangeNotifier {
     socket.onConnect((_) {
       print('Connected to server');
       isConnected = true;
+      myId = socket.id;  // Store player's ID
       socket.emit('joinGame');
       notifyListeners();
     });
@@ -55,6 +58,7 @@ class GameState extends ChangeNotifier {
     socket.on('gameStart', (data) {
       isWaiting = false;
       isMyTurn = data['firstTurn'] == socket.id;
+      playedCards.clear();  // Clear played cards when game starts
       notifyListeners();
     });
 
@@ -67,6 +71,11 @@ class GameState extends ChangeNotifier {
 
     socket.on('changeTurn', (data) {
       isMyTurn = data['nextPlayer'] == socket.id;
+      notifyListeners();
+    });
+
+    socket.on('cardPlayed', (data) {
+      playedCards[data['playerId']] = PlayingCard.fromJson(data['card']);
       notifyListeners();
     });
 
@@ -160,14 +169,80 @@ class GameScreen extends StatelessWidget {
             );
           }
 
-          return Center(
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Opponent's played card
+                SizedBox(
+                  height: 120,
+                  child: Center(
+                    child: gameState.playedCards.entries
+                        .where((entry) => entry.key != gameState.myId)
+                        .isEmpty
+                            ? const Card(
+                                child: SizedBox(
+                                  width: 70,
+                                  height: 100,
+                                  child: Center(
+                                    child: Text('Aguardando...'),
+                                  ),
+                                ),
+                              )
+                            : Card(
+                                child: SizedBox(
+                                  width: 70,
+                                  height: 100,
+                                  child: Center(
+                                    child: Text(
+                                      '${gameState.playedCards.entries.firstWhere((entry) => entry.key != gameState.myId).value.value}'
+                                      '${gameState.playedCards.entries.firstWhere((entry) => entry.key != gameState.myId).value.suit}',
+                                      style: const TextStyle(fontSize: 24),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                  ),
+                ),
+
+                // Turn indicator
                 Text(
                   gameState.isMyTurn ? 'Seu turno!' : 'Turno do oponente',
                   style: const TextStyle(fontSize: 24),
                 ),
+
+                // Player's played card
+                SizedBox(
+                  height: 120,
+                  child: Center(
+                    child: gameState.playedCards[gameState.myId] == null
+                        ? const Card(
+                            child: SizedBox(
+                              width: 70,
+                              height: 100,
+                              child: Center(
+                                child: Text('Sua jogada'),
+                              ),
+                            ),
+                          )
+                        : Card(
+                            child: SizedBox(
+                              width: 70,
+                              height: 100,
+                              child: Center(
+                                child: Text(
+                                  '${gameState.playedCards[gameState.myId]!.value}'
+                                  '${gameState.playedCards[gameState.myId]!.suit}',
+                                  style: const TextStyle(fontSize: 24),
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+
+                // Player's hand
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: gameState.cards.isEmpty
