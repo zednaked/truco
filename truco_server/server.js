@@ -170,13 +170,13 @@ io.on('connection', (socket) => {
             } else {
                 // Continue with next turn
                 io.to(socket.roomId).emit('changeTurn', {
-                    nextPlayer: room.players[nextPlayerIndex].id
+                    currentPlayer: room.players[nextPlayerIndex].id
                 });
             }
         } else {
             // Continue with next turn
             io.to(socket.roomId).emit('changeTurn', {
-                nextPlayer: room.players[nextPlayerIndex].id
+                currentPlayer: room.players[nextPlayerIndex].id
             });
         }
     });
@@ -208,15 +208,13 @@ function startNewRound(roomId) {
         player.cards = room.deck.splice(0, 3);
     });
 
-    // Notify players
-    io.to(roomId).emit('gameStart', {
-        firstTurn: room.players[0].id
-    });
-
-    // Send cards to each player
+    // Notify players with all necessary data
     room.players.forEach(player => {
-        io.to(player.id).emit('dealCards', {
-            cards: player.cards
+        io.to(player.id).emit('gameStart', {
+            firstPlayer: room.players[0].id,
+            cards: player.cards,
+            scores: room.scores,
+            roundWins: room.roundWins
         });
     });
 }

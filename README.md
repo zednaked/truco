@@ -1,119 +1,128 @@
-# Truco Multiplayer Game
+# Truco Multiplayer
 
-A real-time multiplayer implementation of the classic Truco card game using Flutter for the web client and Node.js for the server.
+Um jogo de Truco multiplayer em tempo real desenvolvido com Flutter (web) e Node.js.
 
-## Features
+## Tecnologias Utilizadas
 
-- Real-time two-player gameplay
-- Complete round mechanics with scoring system
-- Turn-based card playing
-- Automatic round and hand winner determination
-- Live game state synchronization
-- Responsive web interface
+- **Frontend**: Flutter Web
+- **Backend**: Node.js com Socket.IO
+- **Comunicação**: WebSocket
+- **Dependências**:
+  - Flutter:
+    - socket_io_client
+    - provider
+    - flutter_animate
+    - animated_text_kit
+  - Node.js:
+    - express
+    - socket.io
 
-## Game Rules
-
-1. Each player receives 3 cards per hand
-2. Players take turns playing one card at a time
-3. Card ranking (from highest to lowest):
-   - 3
-   - 2
-   - A (Ace)
-   - K (King)
-   - J (Jack)
-   - Q (Queen)
-   - 7
-   - 6
-   - 5
-   - 4
-
-4. Round Winner:
-   - The player who plays the highest card wins the round
-   - First to win 2 rounds wins the hand
-   - Winning a hand awards 1 point
-
-## Project Structure
+## Estrutura do Projeto
 
 ```
 truco-nov/
-├── truco_client/         # Flutter web client
+├── truco_client/       # Cliente Flutter
 │   ├── lib/
-│   │   └── main.dart     # Client implementation
-│   └── pubspec.yaml      # Flutter dependencies
-└── truco_server/
-    └── server.js         # Node.js server implementation
+│   │   ├── main.dart   # Lógica principal e UI
+│   │   └── theme.dart  # Configurações de tema
+│   └── pubspec.yaml    # Dependências Flutter
+└── truco_server/       # Servidor Node.js
+    └── server.js       # Lógica do servidor e WebSocket
 ```
 
-## Setup Instructions
+## Funcionalidades
 
-### Server Setup
-1. Navigate to the server directory:
-   ```bash
-   cd truco_server
-   ```
+- Conexão em tempo real entre jogadores
+- Sistema de salas para partidas
+- Distribuição automática de cartas
+- Sistema de turnos
+- Controle de rodadas e pontuação
+- Interface responsiva e animada
+- Feedback visual do estado do jogo
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Como Executar
 
-3. Start the server:
-   ```bash
-   node server.js
-   ```
-   The server will run on port 3001.
+### Servidor (Node.js)
 
-### Client Setup
-1. Navigate to the client directory:
-   ```bash
-   cd truco_client
-   ```
+1. Navegue até a pasta do servidor:
+```bash
+cd truco_server
+```
 
-2. Install Flutter dependencies:
-   ```bash
-   flutter pub get
-   ```
+2. Instale as dependências:
+```bash
+npm install
+```
 
-3. Run the web client:
-   ```bash
-   flutter run -d chrome
-   ```
+3. Inicie o servidor:
+```bash
+node server.js
+```
 
-## Technical Details
+O servidor estará rodando em `http://localhost:3001`
 
-### Server (Node.js)
-- Built with Express and Socket.IO
-- Handles game state management
-- Implements card dealing and comparison logic
-- Manages room-based multiplayer system
-- Tracks scores and round wins
+### Cliente (Flutter Web)
 
-### Client (Flutter Web)
-- Real-time WebSocket communication
-- State management using Provider
-- Responsive game UI
-- Score and round tracking display
-- Turn-based interaction system
+1. Navegue até a pasta do cliente:
+```bash
+cd truco_client
+```
 
-## Dependencies
+2. Instale as dependências:
+```bash
+flutter pub get
+```
 
-### Server
-- express: ^4.18.2
-- socket.io: ^4.7.2
-- cors: ^2.8.5
+3. Execute o cliente:
+```bash
+flutter run -d chrome
+```
 
-### Client
-- socket_io_client: ^2.0.3+1
-- provider: ^6.1.1
+## Estado do Jogo
 
-## Game Flow
+### Servidor
+- Gerenciamento de salas
+- Controle de turnos
+- Distribuição de cartas
+- Cálculo de pontuação
+- Validação de jogadas
 
-1. Player connects to server
-2. Waits for second player
-3. Game starts automatically when two players join
-4. Each player receives 3 cards
-5. Players take turns playing cards
-6. Round winner is determined after both players play
-7. Hand winner is determined after all cards are played
-8. New hand starts automatically
-9. Score is updated for the winner
+### Cliente
+- Gestão de estado com Provider
+- Animações fluidas
+- Feedback visual de ações
+- Tratamento de erros
+- Reconexão automática
+
+## Fluxo do Jogo
+
+1. Jogador conecta ao servidor
+2. Aguarda segundo jogador
+3. Início da partida com distribuição de cartas
+4. Alternância de turnos para jogadas
+5. Cálculo de vencedor da rodada
+6. Atualização de pontuação
+7. Nova rodada ou fim do jogo
+
+## Eventos Socket.IO
+
+### Cliente → Servidor
+- `joinGame`: Solicita entrada em uma sala
+- `playCard`: Envia carta jogada
+
+### Servidor → Cliente
+- `gameStart`: Inicia jogo com dados iniciais
+- `changeTurn`: Alterna turno entre jogadores
+- `cardPlayed`: Notifica jogada realizada
+- `roundResult`: Resultado da rodada
+- `handComplete`: Resultado da mão
+
+## Próximos Passos
+
+- [ ] Implementar regras avançadas do Truco
+- [ ] Adicionar efeitos sonoros
+- [ ] Melhorar tratamento de erros
+- [ ] Sistema de autenticação
+- [ ] Salas persistentes
+- [ ] Modo espectador
+- [ ] Ranking de jogadores

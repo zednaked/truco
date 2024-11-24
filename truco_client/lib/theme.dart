@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class TrucoTheme {
   static const primaryColor = Color(0xFF1B5E20);  // Dark green
