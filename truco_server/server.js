@@ -10,8 +10,36 @@ const io = require('socket.io')(http, {
 
 const PORT = 3001;
 
-// Game state
-let rooms = {};
+// Game room state
+class Room {
+    constructor() {
+        this.players = [];
+        this.deck = [];
+        this.scores = {};
+        this.roundWins = {};
+        this.playedCards = {};
+        this.currentRound = 1;
+        this.currentHandValue = 1; // Valor atual da mão (1, 3, 6, 9, 12)
+        this.trucoState = {
+            isActive: false,
+            lastValue: 0,
+            waitingResponse: false,
+            requestedBy: null
+        };
+    }
+
+    resetRound() {
+        this.playedCards = {};
+        this.currentRound = 1;
+        this.currentHandValue = 1;
+        this.trucoState = {
+            isActive: false,
+            lastValue: 0,
+            waitingResponse: false,
+            requestedBy: null
+        };
+    }
+}
 
 // Card values for comparison (Truco order)
 const cardValues = {
@@ -56,6 +84,8 @@ const compareCards = (card1, card2) => {
     return cardValues[card1.value] - cardValues[card2.value];
 };
 
+let rooms = {};
+
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
@@ -73,16 +103,7 @@ io.on('connection', (socket) => {
 
         if (!roomId) {
             roomId = Date.now().toString();
-            rooms[roomId] = {
-                players: [],
-                deck: createDeck(),
-                currentTurn: 0,
-                gameStarted: false,
-                roundNumber: 1,
-                cardsInRound: {},
-                scores: {},
-                roundWins: {}
-            };
+            rooms[roomId] = new Room();
         }
 
         // Add player to room
@@ -113,7 +134,7 @@ io.on('connection', (socket) => {
         const nextPlayerIndex = (playerIndex + 1) % 2;
 
         // Store played card
-        room.cardsInRound[socket.id] = data.card;
+        room.playedCards[socket.id] = data.card;
 
         // Remove played card from player's hand
         const playerCards = room.players[playerIndex].cards;
@@ -132,11 +153,11 @@ io.on('connection', (socket) => {
         });
 
         // If both players have played their cards, determine round winner
-        if (Object.keys(room.cardsInRound).length === 2) {
+        if (Object.keys(room.playedCards).length === 2) {
             const player1 = room.players[0].id;
             const player2 = room.players[1].id;
-            const card1 = room.cardsInRound[player1];
-            const card2 = room.cardsInRound[player2];
+            const card1 = room.playedCards[player1];
+            const card2 = room.playedCards[player2];
 
             const comparison = compareCards(card1, card2);
             const roundWinner = comparison > 0 ? player1 : player2;
@@ -145,7 +166,7 @@ io.on('connection', (socket) => {
             room.roundWins[roundWinner]++;
 
             // Clear cards for next round
-            room.cardsInRound = {};
+            room.playedCards = {};
 
             // Emit round result
             io.to(socket.roomId).emit('roundResult', {
@@ -181,6 +202,95 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Handle truco request
+    socket.on('requestTruco', () => {
+        const room = rooms[socket.roomId];
+        if (!room || room.trucoState.waitingResponse) return;
+
+        const nextValue = room.trucoState.lastValue === 0 ? 3 : 
+                         room.trucoState.lastValue === 3 ? 6 :
+                         room.trucoState.lastValue === 6 ? 9 :
+                         room.trucoState.lastValue === 9 ? 12 : 0;
+
+        if (nextValue === 0) return; // Valor máximo já atingido
+
+        room.trucoState = {
+            isActive: true,
+            lastValue: room.trucoState.lastValue,
+            waitingResponse: true,
+            requestedBy: socket.id
+        };
+
+        // Notifica todos na sala sobre o pedido de truco
+        io.to(socket.roomId).emit('trucoRequested', {
+            requestedBy: socket.id,
+            value: nextValue
+        });
+    });
+
+    // Handle truco response
+    socket.on('respondTruco', (response) => {
+        const room = rooms[socket.roomId];
+        if (!room || !room.trucoState.waitingResponse) return;
+
+        room.trucoState.waitingResponse = false;
+
+        if (response === 'accept') {
+            // Aceita o truco
+            const newValue = room.trucoState.lastValue === 0 ? 3 : 
+                           room.trucoState.lastValue === 3 ? 6 :
+                           room.trucoState.lastValue === 6 ? 9 :
+                           room.trucoState.lastValue === 9 ? 12 : 12;
+            
+            room.currentHandValue = newValue;
+            room.trucoState.lastValue = newValue;
+
+            io.to(socket.roomId).emit('trucoAccepted', {
+                value: newValue
+            });
+        } 
+        else if (response === 'raise') {
+            // Aumenta o valor
+            const nextValue = room.trucoState.lastValue === 3 ? 6 :
+                            room.trucoState.lastValue === 6 ? 9 :
+                            room.trucoState.lastValue === 9 ? 12 : 0;
+
+            if (nextValue === 0) return; // Não pode aumentar mais
+
+            room.trucoState = {
+                isActive: true,
+                lastValue: room.trucoState.lastValue,
+                waitingResponse: true,
+                requestedBy: socket.id
+            };
+
+            io.to(socket.roomId).emit('trucoRaised', {
+                raisedBy: socket.id,
+                value: nextValue
+            });
+        }
+        else if (response === 'quit') {
+            // Foge do truco
+            const points = room.trucoState.lastValue === 0 ? 1 :
+                         room.trucoState.lastValue === 3 ? 3 :
+                         room.trucoState.lastValue === 6 ? 6 :
+                         room.trucoState.lastValue === 9 ? 9 : 1;
+
+            // Dá os pontos para quem pediu
+            room.scores[room.trucoState.requestedBy] = 
+                (room.scores[room.trucoState.requestedBy] || 0) + points;
+
+            io.to(socket.roomId).emit('trucoQuit', {
+                quitBy: socket.id,
+                points: points,
+                scores: room.scores
+            });
+
+            // Inicia nova rodada
+            startNewRound(socket.roomId);
+        }
+    });
+
     // Handle disconnection
     socket.on('disconnect', () => {
         if (socket.roomId && rooms[socket.roomId]) {
@@ -194,14 +304,8 @@ function startNewRound(roomId) {
     const room = rooms[roomId];
     if (!room) return;
 
-    room.gameStarted = true;
+    room.resetRound();
     room.deck = createDeck();
-    room.roundNumber++;
-    room.cardsInRound = {};
-    room.roundWins = {
-        [room.players[0].id]: 0,
-        [room.players[1].id]: 0
-    };
     
     // Deal 3 cards to each player
     room.players.forEach(player => {

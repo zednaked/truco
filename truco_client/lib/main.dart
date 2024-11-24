@@ -31,17 +31,30 @@ class PlayingCard {
 
 class GameState extends ChangeNotifier {
   bool isConnected = false;
+  bool isWaiting = true;
   bool isMyTurn = false;
-  List<PlayingCard> myCards = [];
-  late IO.Socket socket;
-  bool isWaiting = true; // Começa aguardando
-  Map<String, PlayingCard> playedCards = {};
-  List<Map<String, PlayingCard>> previousRoundCards = []; // Cartas das rodadas anteriores
   String? myId;
+  List<PlayingCard> myCards = [];
+  Map<String, PlayingCard> playedCards = {};
+  Map<String, PlayingCard> previousRoundCards = {};
   Map<String, int> scores = {};
   Map<String, int> roundWins = {};
-  String? roundWinner;
-  String? handWinner;
+  
+  // Truco state
+  bool isTrucoRequested = false;
+  String? trucoRequestedBy;
+  int currentHandValue = 1;
+  bool canRequestTruco = true;
+
+  void resetTrucoState() {
+    isTrucoRequested = false;
+    trucoRequestedBy = null;
+    currentHandValue = 1;
+    canRequestTruco = true;
+    notifyListeners();
+  }
+
+  late IO.Socket socket;
 
   void connect() {
     socket = IO.io('http://localhost:3001', <String, dynamic>{
@@ -124,14 +137,12 @@ class GameState extends ChangeNotifier {
     });
 
     socket.on('roundResult', (data) {
-      roundWinner = data['winner'];
       roundWins = Map<String, int>.from(data['roundWins']);
       _handleRoundEnd();
       notifyListeners();
     });
 
     socket.on('handComplete', (data) {
-      handWinner = data['winner'];
       scores = Map<String, int>.from(data['scores']);
       notifyListeners();
     });
@@ -143,6 +154,34 @@ class GameState extends ChangeNotifier {
       playedCards.clear();
       scores.clear();
       roundWins.clear();
+      notifyListeners();
+    });
+
+    socket.on('trucoRequested', (data) {
+      isTrucoRequested = true;
+      trucoRequestedBy = data['requestedBy'];
+      canRequestTruco = false;
+      notifyListeners();
+    });
+
+    socket.on('trucoAccepted', (data) {
+      isTrucoRequested = false;
+      currentHandValue = data['value'];
+      canRequestTruco = true;
+      notifyListeners();
+    });
+
+    socket.on('trucoRaised', (data) {
+      isTrucoRequested = true;
+      trucoRequestedBy = data['raisedBy'];
+      canRequestTruco = false;
+      notifyListeners();
+    });
+
+    socket.on('trucoQuit', (data) {
+      isTrucoRequested = false;
+      scores = Map<String, int>.from(data['scores']);
+      canRequestTruco = true;
       notifyListeners();
     });
   }
@@ -160,7 +199,7 @@ class GameState extends ChangeNotifier {
 
   void _handleRoundEnd() {
     if (playedCards.isNotEmpty) {
-      previousRoundCards.add(Map.from(playedCards));
+      previousRoundCards = playedCards;
       playedCards.clear();
     }
     notifyListeners();
@@ -174,6 +213,16 @@ class GameState extends ChangeNotifier {
   String getRoundWinsText() {
     if (roundWins.isEmpty) return '';
     return 'Rodadas: Você ${roundWins[myId] ?? 0} x ${roundWins.entries.firstWhere((entry) => entry.key != myId).value} Oponente';
+  }
+
+  void requestTruco() {
+    if (!canRequestTruco || !isMyTurn) return;
+    socket.emit('requestTruco');
+  }
+
+  void respondTruco(String response) {
+    if (!isTrucoRequested) return;
+    socket.emit('respondTruco', response);
   }
 }
 
@@ -317,7 +366,7 @@ class GameTable extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Score display
           Container(
@@ -342,263 +391,105 @@ class GameTable extends StatelessWidget {
             ),
           ).animate().fadeIn(duration: 500.ms).slideY(begin: -0.2, end: 0),
 
-          // Game messages
-          if (gameState.roundWinner != null || gameState.handWinner != null)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-              decoration: BoxDecoration(
-                color: TrucoTheme.primaryColor.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: TrucoTheme.secondaryColor),
-              ),
-              child: Column(
-                children: [
-                  if (gameState.roundWinner != null)
-                    Text(
-                      gameState.roundWinner == gameState.myId
-                          ? 'Você venceu a rodada!'
-                          : 'Oponente venceu a rodada!',
-                      style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-                        color: TrucoTheme.secondaryColor,
-                      ),
-                    ).animate().fadeIn(duration: 300.ms).scale().then().shimmer(),
-                  if (gameState.handWinner != null)
-                    Text(
-                      gameState.handWinner == gameState.myId
-                          ? 'Você venceu a mão!'
-                          : 'Oponente venceu a mão!',
-                      style: Theme.of(context).textTheme.displayMedium!.copyWith(
-                        color: TrucoTheme.secondaryColor,
-                      ),
-                    ).animate().fadeIn(duration: 500.ms).scale().then().shimmer(),
-                ],
-              ),
-            ),
-
-          // Game table
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 20),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: TrucoTheme.primaryColor.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Previous rounds' cards
-                  if (gameState.previousRoundCards.isNotEmpty)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: gameState.previousRoundCards.map((roundCards) {
-                        return Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Row(
-                            children: [
-                              // Opponent's card
-                              Container(
-                                width: 60,
-                                height: 90,
-                                margin: const EdgeInsets.only(right: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.7),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.black26,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${roundCards.entries.firstWhere((entry) => entry.key != gameState.myId).value.value}'
-                                    '${roundCards.entries.firstWhere((entry) => entry.key != gameState.myId).value.suit}',
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      color: Colors.black38,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // Player's card
-                              Container(
-                                width: 60,
-                                height: 90,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.7),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.black26,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${roundCards[gameState.myId]!.value}'
-                                    '${roundCards[gameState.myId]!.suit}',
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      color: Colors.black38,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-
-                  // Current round cards
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Opponent's played card
-                      SizedBox(
-                        height: 120,
-                        width: 120,
-                        child: Center(
-                          child: gameState.playedCards.entries
-                                  .any((entry) => entry.key != gameState.myId)
-                              ? Container(
-                                  width: 80,
-                                  height: 120,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: TrucoTheme.secondaryColor,
-                                      width: 2,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.2),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${gameState.playedCards.entries.firstWhere((entry) => entry.key != gameState.myId).value.value}'
-                                      '${gameState.playedCards.entries.firstWhere((entry) => entry.key != gameState.myId).value.suit}',
-                                      style: const TextStyle(
-                                        fontSize: 32,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                  ),
-                                ).animate()
-                                  .scale(duration: 300.ms)
-                                  .then()
-                                  .shake(duration: 200.ms)
-                              : const SizedBox(),
-                        ),
-                      ),
-
-                      // Player's played card
-                      SizedBox(
-                        height: 120,
-                        width: 120,
-                        child: Center(
-                          child: gameState.playedCards.containsKey(gameState.myId)
-                              ? Container(
-                                  width: 80,
-                                  height: 120,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: TrucoTheme.secondaryColor,
-                                      width: 2,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.2),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${gameState.playedCards[gameState.myId]!.value}'
-                                      '${gameState.playedCards[gameState.myId]!.suit}',
-                                      style: const TextStyle(
-                                        fontSize: 32,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                  ),
-                                ).animate()
-                                  .scale(duration: 300.ms)
-                                  .then()
-                                  .shake(duration: 200.ms)
-                              : const SizedBox(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          // Game info area
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Pontos: ${gameState.scores[gameState.myId] ?? 0} x '
+                   '${gameState.scores.values.firstWhere((score) => score != gameState.scores[gameState.myId], orElse: () => 0)}'),
+              const SizedBox(width: 20),
+              if (gameState.currentHandValue > 1)
+                Text('Valor da mão: ${gameState.currentHandValue}'),
+            ],
           ),
 
-          // Player's hand
-          Container(
-            height: 140,
-            decoration: BoxDecoration(
-              color: TrucoTheme.primaryColor.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
+          // Truco request area
+          if (gameState.isTrucoRequested && gameState.trucoRequestedBy != gameState.myId)
+            Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: gameState.myCards.map((card) {
-                final bool canPlay = gameState.isMyTurn && 
-                    !gameState.playedCards.containsKey(gameState.myId);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: GestureDetector(
-                    onTap: canPlay
-                        ? () => gameState.playCard(card)
-                        : null,
-                    child: Container(
-                      width: 80,
-                      height: 120,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: canPlay
-                              ? TrucoTheme.secondaryColor
-                              : Colors.black54,
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+              children: [
+                Text('Truco! Valor: ${gameState.currentHandValue == 1 ? 3 : 
+                                    gameState.currentHandValue == 3 ? 6 :
+                                    gameState.currentHandValue == 6 ? 9 : 12}'),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: () => gameState.respondTruco('accept'),
+                  child: const Text('Aceitar'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: () => gameState.respondTruco('raise'),
+                  child: const Text('Aumentar'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: () => gameState.respondTruco('quit'),
+                  child: const Text('Correr'),
+                ),
+              ],
+            ),
+
+          // Player cards area
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: gameState.myCards.map((card) {
+              final bool canPlay = gameState.isMyTurn && 
+                  !gameState.playedCards.containsKey(gameState.myId);
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: canPlay
+                      ? () => gameState.playCard(card)
+                      : null,
+                  child: Container(
+                    width: 80,
+                    height: 120,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: canPlay
+                            ? TrucoTheme.secondaryColor
+                            : Colors.black54,
+                        width: 2,
                       ),
-                      child: Center(
-                        child: Text(
-                          '${card.value}${card.suit}',
-                          style: TextStyle(
-                            fontSize: 32,
-                            color: canPlay
-                                ? Colors.black
-                                : Colors.black54,
-                          ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${card.value}${card.suit}',
+                        style: TextStyle(
+                          fontSize: 32,
+                          color: canPlay
+                              ? Colors.black
+                              : Colors.black54,
                         ),
                       ),
                     ),
                   ),
-                );
-              }).toList(),
-            ),
+                ),
+              );
+            }).toList(),
+            
+            if (gameState.isMyTurn && gameState.canRequestTruco && !gameState.isTrucoRequested)
+              Padding(
+                padding: const EdgeInsets.only(left: 20),
+                child: ElevatedButton(
+                  onPressed: gameState.requestTruco,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('TRUCO!'),
+                ),
+              ),
           ),
         ],
       ),
