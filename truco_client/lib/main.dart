@@ -31,8 +31,12 @@ class GameState extends ChangeNotifier {
   List<PlayingCard> cards = [];
   late IO.Socket socket;
   bool isWaiting = false;
-  Map<String, PlayingCard> playedCards = {};  // Track played cards by player ID
-  String? myId;  // Store player's socket ID
+  Map<String, PlayingCard> playedCards = {};
+  String? myId;
+  Map<String, int> scores = {};
+  Map<String, int> roundWins = {};
+  String? roundWinner;
+  String? handWinner;
 
   void connect() {
     socket = IO.io('http://localhost:3001', <String, dynamic>{
@@ -45,7 +49,7 @@ class GameState extends ChangeNotifier {
     socket.onConnect((_) {
       print('Connected to server');
       isConnected = true;
-      myId = socket.id;  // Store player's ID
+      myId = socket.id;
       socket.emit('joinGame');
       notifyListeners();
     });
@@ -58,7 +62,9 @@ class GameState extends ChangeNotifier {
     socket.on('gameStart', (data) {
       isWaiting = false;
       isMyTurn = data['firstTurn'] == socket.id;
-      playedCards.clear();  // Clear played cards when game starts
+      playedCards.clear();
+      roundWinner = null;
+      handWinner = null;
       notifyListeners();
     });
 
@@ -79,10 +85,25 @@ class GameState extends ChangeNotifier {
       notifyListeners();
     });
 
+    socket.on('roundResult', (data) {
+      roundWinner = data['winner'];
+      roundWins = Map<String, int>.from(data['roundWins']);
+      notifyListeners();
+    });
+
+    socket.on('handComplete', (data) {
+      handWinner = data['winner'];
+      scores = Map<String, int>.from(data['scores']);
+      notifyListeners();
+    });
+
     socket.on('playerLeft', (_) {
       isConnected = false;
       isMyTurn = false;
       cards.clear();
+      playedCards.clear();
+      scores.clear();
+      roundWins.clear();
       notifyListeners();
     });
   }
@@ -96,6 +117,16 @@ class GameState extends ChangeNotifier {
     
     cards.removeWhere((c) => c.suit == card.suit && c.value == card.value);
     notifyListeners();
+  }
+
+  String getScoreText() {
+    if (scores.isEmpty) return '';
+    return 'Placar: Você ${scores[myId] ?? 0} x ${scores.entries.firstWhere((entry) => entry.key != myId).value} Oponente';
+  }
+
+  String getRoundWinsText() {
+    if (roundWins.isEmpty) return '';
+    return 'Rodadas: Você ${roundWins[myId] ?? 0} x ${roundWins.entries.firstWhere((entry) => entry.key != myId).value} Oponente';
   }
 }
 
@@ -174,6 +205,43 @@ class GameScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Score display
+                Column(
+                  children: [
+                    Text(
+                      gameState.getScoreText(),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      gameState.getRoundWinsText(),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
+
+                // Round winner display
+                if (gameState.roundWinner != null)
+                  Text(
+                    gameState.roundWinner == gameState.myId
+                        ? 'Você venceu a rodada!'
+                        : 'Oponente venceu a rodada!',
+                    style: const TextStyle(fontSize: 18, color: Colors.green),
+                  ),
+
+                // Hand winner display
+                if (gameState.handWinner != null)
+                  Text(
+                    gameState.handWinner == gameState.myId
+                        ? 'Você venceu a mão!'
+                        : 'Oponente venceu a mão!',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+
                 // Opponent's played card
                 SizedBox(
                   height: 120,

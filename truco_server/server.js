@@ -13,10 +13,24 @@ const PORT = 3001;
 // Game state
 let rooms = {};
 
+// Card values for comparison (Truco order)
+const cardValues = {
+    '3': 10,
+    '2': 9,
+    'A': 8,
+    'K': 7,
+    'J': 6,
+    'Q': 5,
+    '7': 4,
+    '6': 3,
+    '5': 2,
+    '4': 1
+};
+
 // Card deck
 const createDeck = () => {
     const suits = ['♠', '♥', '♣', '♦'];
-    const values = ['A', '2', '3', '4', '5', '6', '7', 'J', 'Q', 'K'];
+    const values = ['4', '5', '6', '7', 'Q', 'J', 'K', 'A', '2', '3'];
     let deck = [];
     
     for (let suit of suits) {
@@ -35,6 +49,11 @@ const shuffle = (array) => {
         [array[i], array[j]] = [array[j], array[i]];
     }
     return array;
+};
+
+// Compare cards to determine winner
+const compareCards = (card1, card2) => {
+    return cardValues[card1.value] - cardValues[card2.value];
 };
 
 io.on('connection', (socket) => {
@@ -58,7 +77,11 @@ io.on('connection', (socket) => {
                 players: [],
                 deck: createDeck(),
                 currentTurn: 0,
-                gameStarted: false
+                gameStarted: false,
+                roundNumber: 1,
+                cardsInRound: {},
+                scores: {},
+                roundWins: {}
             };
         }
 
@@ -67,30 +90,15 @@ io.on('connection', (socket) => {
             id: socket.id,
             cards: []
         });
+        rooms[roomId].scores[socket.id] = 0;
+        rooms[roomId].roundWins[socket.id] = 0;
 
         socket.join(roomId);
         socket.roomId = roomId;
 
         // If room is full, start the game
         if (rooms[roomId].players.length === 2) {
-            rooms[roomId].gameStarted = true;
-            
-            // Deal 3 cards to each player
-            rooms[roomId].players.forEach(player => {
-                player.cards = rooms[roomId].deck.splice(0, 3);
-            });
-
-            // Notify players
-            io.to(roomId).emit('gameStart', {
-                firstTurn: rooms[roomId].players[0].id
-            });
-
-            // Send cards to each player
-            rooms[roomId].players.forEach(player => {
-                io.to(player.id).emit('dealCards', {
-                    cards: player.cards
-                });
-            });
+            startNewRound(roomId);
         } else {
             socket.emit('waitingForPlayer');
         }
@@ -103,6 +111,9 @@ io.on('connection', (socket) => {
 
         const playerIndex = room.players.findIndex(p => p.id === socket.id);
         const nextPlayerIndex = (playerIndex + 1) % 2;
+
+        // Store played card
+        room.cardsInRound[socket.id] = data.card;
 
         // Remove played card from player's hand
         const playerCards = room.players[playerIndex].cards;
@@ -120,10 +131,54 @@ io.on('connection', (socket) => {
             card: data.card
         });
 
-        // Change turn
-        io.to(socket.roomId).emit('changeTurn', {
-            nextPlayer: room.players[nextPlayerIndex].id
-        });
+        // If both players have played their cards, determine round winner
+        if (Object.keys(room.cardsInRound).length === 2) {
+            const player1 = room.players[0].id;
+            const player2 = room.players[1].id;
+            const card1 = room.cardsInRound[player1];
+            const card2 = room.cardsInRound[player2];
+
+            const comparison = compareCards(card1, card2);
+            const roundWinner = comparison > 0 ? player1 : player2;
+
+            // Update round wins
+            room.roundWins[roundWinner]++;
+
+            // Clear cards for next round
+            room.cardsInRound = {};
+
+            // Emit round result
+            io.to(socket.roomId).emit('roundResult', {
+                winner: roundWinner,
+                roundWins: room.roundWins
+            });
+
+            // Check if all cards have been played
+            if (room.players[0].cards.length === 0) {
+                // Determine hand winner
+                const handWinner = room.roundWins[player1] > room.roundWins[player2] ? player1 : player2;
+                room.scores[handWinner]++;
+
+                // Emit hand result
+                io.to(socket.roomId).emit('handComplete', {
+                    winner: handWinner,
+                    scores: room.scores
+                });
+
+                // Start new round after a delay
+                setTimeout(() => startNewRound(socket.roomId), 2000);
+            } else {
+                // Continue with next turn
+                io.to(socket.roomId).emit('changeTurn', {
+                    nextPlayer: room.players[nextPlayerIndex].id
+                });
+            }
+        } else {
+            // Continue with next turn
+            io.to(socket.roomId).emit('changeTurn', {
+                nextPlayer: room.players[nextPlayerIndex].id
+            });
+        }
     });
 
     // Handle disconnection
@@ -134,6 +189,37 @@ io.on('connection', (socket) => {
         }
     });
 });
+
+function startNewRound(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    room.gameStarted = true;
+    room.deck = createDeck();
+    room.roundNumber++;
+    room.cardsInRound = {};
+    room.roundWins = {
+        [room.players[0].id]: 0,
+        [room.players[1].id]: 0
+    };
+    
+    // Deal 3 cards to each player
+    room.players.forEach(player => {
+        player.cards = room.deck.splice(0, 3);
+    });
+
+    // Notify players
+    io.to(roomId).emit('gameStart', {
+        firstTurn: room.players[0].id
+    });
+
+    // Send cards to each player
+    room.players.forEach(player => {
+        io.to(player.id).emit('dealCards', {
+            cards: player.cards
+        });
+    });
+}
 
 http.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
