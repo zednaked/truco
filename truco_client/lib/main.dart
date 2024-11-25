@@ -89,7 +89,7 @@ class GameState extends ChangeNotifier {
   late IO.Socket socket;
 
   void connect() {
-    socket = IO.io('http://localhost:3001', <String, dynamic>{
+    socket = IO.io('https://truco-lrgy.onrender.com', <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': false,
     });
