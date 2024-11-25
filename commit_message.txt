@@ -1,0 +1,16 @@
+feat(ui): Melhorias visuais nas cartas e botão de truco
+
+- Adiciona efeito de leque 3D para cartas na mão
+  * Rotação suave baseada na posição
+  * Perspectiva e inclinação realistas
+  * Transformações usando Matrix4
+
+- Implementa novo botão de truco com ícone de fogo
+  * Adiciona animações de brilho e tremor
+  * Melhora o design visual
+  * Feedback visual mais dinâmico
+
+- Atualiza documentação
+  * Adiciona seção de features visuais no README
+  * Documenta detalhes técnicos das transformações
+  * Inclui comentários explicativos no código

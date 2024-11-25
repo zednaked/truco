@@ -52,6 +52,40 @@ truco-nov/
     └── server.js       # Lógica do servidor e WebSocket
 ```
 
+## Features Visuais
+
+### Mesa de Jogo
+- Mesa verde com efeito de profundidade
+- Cartas jogadas são exibidas com rotação dinâmica
+- Cartas da rodada anterior permanecem visíveis com opacidade reduzida
+- Animações suaves de entrada para cada carta jogada
+
+### Cartas na Mão
+- Efeito de leque 3D realista
+- Rotação suave baseada na posição da carta
+- Perspectiva ajustada para simular cartas sendo seguradas
+- Inclinação natural para melhor visualização
+
+### Botão de Truco
+- Ícone animado de fogo
+- Efeitos visuais de brilho e tremor
+- Design moderno com bordas arredondadas
+- Aparece apenas quando é permitido pedir truco
+
+## Detalhes Técnicos
+
+### Transformações 3D
+- Uso de Matrix4 para transformações complexas
+- Rotação em eixos múltiplos (X e Z)
+- Perspectiva ajustada para profundidade realista
+- Cálculos dinâmicos baseados na quantidade de cartas
+
+### Animações
+- Utilização do pacote flutter_animate
+- Efeitos encadeados e temporizados
+- Curvas de animação personalizadas
+- Feedback visual responsivo
+
 ## Funcionalidades
 
 - Conexão em tempo real entre jogadores

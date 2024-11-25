@@ -529,34 +529,63 @@ class GameTable extends StatelessWidget {
               ],
             ),
 
-          // Player cards area
+          // Player cards area - Implementa um efeito de leque 3D para as cartas na mão
+          // As cartas são dispostas em um arco com rotação suave e perspectiva
+          // para simular como as cartas aparecem quando seguradas por um jogador
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ...gameState.myCards.map((card) {
-                final bool canPlay = gameState.isMyTurn && 
-                    !gameState.playedCards.containsKey(gameState.myId);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: GestureDetector(
-                    onTap: canPlay
-                        ? () => gameState.playCard(card)
-                        : null,
-                    child: card.buildWidget(),
+              ...gameState.myCards.asMap().entries.map((entry) {
+                final index = entry.key;
+                final card = entry.value;
+                // Calcula o centro do leque para distribuir as rotações uniformemente
+                final centerIndex = (gameState.myCards.length - 1) / 2;
+                // Define o ângulo de rotação baseado na distância do centro
+                final angle = (index - centerIndex) * 0.1; // 0.1 rad ≈ 5.7 graus
+
+                return Transform(
+                  // Configuração da matriz de transformação 3D
+                  transform: Matrix4.identity()
+                    ..setEntry(3, 2, 0.001) // Adiciona perspectiva sutil
+                    ..rotateX(-0.3) // Inclina as cartas para frente (~17 graus)
+                    ..rotateZ(angle), // Aplica a rotação em leque
+                  alignment: Alignment.center,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: GestureDetector(
+                      onTap: gameState.isMyTurn ? () => gameState.playCard(card) : null,
+                      child: card.buildWidget(),
+                    ),
                   ),
                 );
-              }).toList(),
+              }),
               
+              // Botão de TRUCO animado com ícone de fogo
+              // Aparece apenas quando é permitido pedir truco
               if (gameState.isMyTurn && gameState.canRequestTruco && !gameState.isTrucoRequested)
                 Padding(
                   padding: const EdgeInsets.only(left: 20),
-                  child: ElevatedButton(
+                  child: ElevatedButton.icon(
                     onPressed: gameState.requestTruco,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
-                    child: const Text('TRUCO!'),
-                  ),
+                    icon: const Icon(Icons.local_fire_department, size: 24),
+                    label: const Text(
+                      'TRUCO!',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ).animate()
+                    .shimmer(duration: 1000.ms, delay: 500.ms) // Efeito de brilho
+                    .shake(duration: 500.ms, curve: Curves.easeInOut), // Efeito de tremor
                 ),
             ],
           ),
