@@ -8,7 +8,12 @@ const io = require('socket.io')(http, {
     }
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
+
+// Healthcheck endpoint
+app.get('/', (req, res) => {
+    res.json({ status: 'ok', message: 'Truco server is running!' });
+});
 
 // Game room state
 class Room {
