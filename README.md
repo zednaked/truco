@@ -1,184 +1,100 @@
-# Truco Multiplayer
+# Truco Online
 
-Um jogo de Truco multiplayer em tempo real desenvolvido com Flutter (web) e Node.js.
+Um jogo de Truco multiplayer desenvolvido com Flutter Web e Node.js.
 
-## Tecnologias Utilizadas
+## 🎮 Jogar Agora
+
+O jogo está disponível online em:
+- **Cliente Web**: https://zednaked.github.io/truco/
+- **Servidor**: https://truco-lrgy.onrender.com
+
+## 🚀 Tecnologias
 
 - **Frontend**: Flutter Web
-- **Backend**: Node.js com Socket.IO
-- **Comunicação**: WebSocket
-- **Dependências**:
-  - Flutter:
-    - socket_io_client
-    - provider
-    - flutter_animate
-    - animated_text_kit
-  - Node.js:
-    - express
-    - socket.io
-    - cors
+  - socket_io_client para comunicação em tempo real
+  - provider para gerenciamento de estado
+  - flutter_animate para animações
+  - Efeitos 3D nas cartas usando Matrix4
 
-## Regras do Jogo
+- **Backend**: Node.js
+  - Express para servidor web
+  - Socket.IO para comunicação em tempo real
+  - CORS habilitado para produção
 
-1. Cada jogador recebe 3 cartas por mão
-2. Jogadores se alternam jogando uma carta por vez
-3. Ranking das cartas (da mais alta para mais baixa):
-   - 3
-   - 2
-   - A (Ás)
-   - K (Rei)
-   - J (Valete)
-   - Q (Dama)
-   - 7
-   - 6
-   - 5
-   - 4
+## 🎯 Funcionalidades
 
-4. Vencedor da Rodada:
-   - O jogador que jogar a carta mais alta vence a rodada
-   - Primeiro a vencer 2 rodadas ganha a mão
-   - Ganhar uma mão vale 1 ponto
+- Jogo multiplayer em tempo real
+- Interface responsiva e moderna
+- Animações fluidas
+- Efeito 3D nas cartas
+- Sistema de pontuação
+- Botão de Truco com animação
+- Visualização das cartas da rodada anterior
 
-## Estrutura do Projeto
+## 🔧 Desenvolvimento Local
 
-```
-truco-nov/
-├── truco_client/       # Cliente Flutter
-│   ├── lib/
-│   │   ├── main.dart   # Lógica principal e UI
-│   │   └── theme.dart  # Configurações de tema
-│   └── pubspec.yaml    # Dependências Flutter
-└── truco_server/       # Servidor Node.js
-    └── server.js       # Lógica do servidor e WebSocket
-```
+### Cliente (Flutter)
 
-## Features Visuais
-
-### Mesa de Jogo
-- Mesa verde com efeito de profundidade
-- Cartas jogadas são exibidas com rotação dinâmica
-- Cartas da rodada anterior permanecem visíveis com opacidade reduzida
-- Animações suaves de entrada para cada carta jogada
-
-### Cartas na Mão
-- Efeito de leque 3D realista
-- Rotação suave baseada na posição da carta
-- Perspectiva ajustada para simular cartas sendo seguradas
-- Inclinação natural para melhor visualização
-
-### Botão de Truco
-- Ícone animado de fogo
-- Efeitos visuais de brilho e tremor
-- Design moderno com bordas arredondadas
-- Aparece apenas quando é permitido pedir truco
-
-## Detalhes Técnicos
-
-### Transformações 3D
-- Uso de Matrix4 para transformações complexas
-- Rotação em eixos múltiplos (X e Z)
-- Perspectiva ajustada para profundidade realista
-- Cálculos dinâmicos baseados na quantidade de cartas
-
-### Animações
-- Utilização do pacote flutter_animate
-- Efeitos encadeados e temporizados
-- Curvas de animação personalizadas
-- Feedback visual responsivo
-
-## Funcionalidades
-
-- Conexão em tempo real entre jogadores
-- Sistema de salas para partidas
-- Distribuição automática de cartas
-- Sistema de turnos
-- Controle de rodadas e pontuação
-- Interface responsiva e animada
-- Feedback visual do estado do jogo
-
-## Como Executar
-
-### Servidor (Node.js)
-
-1. Navegue até a pasta do servidor:
-```bash
-cd truco_server
-```
-
-2. Instale as dependências:
-```bash
-npm install
-```
-
-3. Inicie o servidor:
-```bash
-node server.js
-```
-
-O servidor estará rodando em `http://localhost:3001`
-
-### Cliente (Flutter Web)
-
-1. Navegue até a pasta do cliente:
 ```bash
 cd truco_client
-```
-
-2. Instale as dependências:
-```bash
 flutter pub get
-```
-
-3. Execute o cliente:
-```bash
 flutter run -d chrome
 ```
 
-## Estado do Jogo
+### Servidor (Node.js)
 
-### Servidor
-- Gerenciamento de salas
-- Controle de turnos
-- Distribuição de cartas
-- Cálculo de pontuação
-- Validação de jogadas
+```bash
+cd truco_server
+npm install
+npm start
+```
 
-### Cliente
-- Gestão de estado com Provider
-- Animações fluidas
-- Feedback visual de ações
-- Tratamento de erros
-- Reconexão automática
+## 📦 Deploy
 
-## Fluxo do Jogo
+### Cliente (GitHub Pages)
+O cliente está hospedado no GitHub Pages. Para fazer um novo deploy:
 
-1. Jogador conecta ao servidor
-2. Aguarda segundo jogador
-3. Início da partida com distribuição de cartas
-4. Alternância de turnos para jogadas
-5. Cálculo de vencedor da rodada
-6. Atualização de pontuação
-7. Nova rodada ou fim do jogo
+```bash
+cd truco_client
+flutter build web --base-href /truco/
+# Copiar conteúdo da pasta build/web para a pasta docs
+git add .
+git commit -m "Update web build"
+git push origin gh-pages
+```
 
-## Eventos Socket.IO
+### Servidor (Render)
+O servidor está hospedado no Render.com com deploy automático da branch main.
+- URL do servidor: https://truco-lrgy.onrender.com
+- Healthcheck endpoint: GET https://truco-lrgy.onrender.com/
 
-### Cliente → Servidor
-- `joinGame`: Solicita entrada em uma sala
-- `playCard`: Envia carta jogada
+## 🔌 Endpoints
 
-### Servidor → Cliente
-- `gameStart`: Inicia jogo com dados iniciais
-- `changeTurn`: Alterna turno entre jogadores
-- `cardPlayed`: Notifica jogada realizada
+### WebSocket
+O servidor utiliza Socket.IO para comunicação em tempo real:
+
+```javascript
+// Conexão em produção
+io.connect('https://truco-lrgy.onrender.com')
+
+// Conexão local
+io.connect('http://localhost:3001')
+```
+
+### Eventos Socket.IO
+
+- `joinGame`: Entrar em uma partida
+- `gameStart`: Início do jogo
+- `cardPlayed`: Carta jogada
+- `changeTurn`: Mudança de turno
 - `roundResult`: Resultado da rodada
-- `handComplete`: Resultado da mão
+- `trucoRequested`: Pedido de truco
+- `trucoAccepted`: Truco aceito
 
-## Próximos Passos
+## 👥 Contribuição
 
-- [ ] Implementar regras avançadas do Truco
-- [ ] Adicionar efeitos sonoros
-- [ ] Melhorar tratamento de erros
-- [ ] Sistema de autenticação
-- [ ] Salas persistentes
-- [ ] Modo espectador
-- [ ] Ranking de jogadores
+Sinta-se à vontade para contribuir com o projeto através de Pull Requests.
+
+## 📝 Licença
+
+Este projeto está sob a licença MIT.
