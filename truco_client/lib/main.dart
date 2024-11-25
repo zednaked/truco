@@ -27,6 +27,38 @@ class PlayingCard {
       value: json['value'],
     );
   }
+
+  Widget buildWidget() {
+    return Container(
+      width: 80,
+      height: 120,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.black54,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          '${value}${suit}',
+          style: const TextStyle(
+            fontSize: 32,
+            color: Colors.black,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class GameState extends ChangeNotifier {
@@ -39,7 +71,7 @@ class GameState extends ChangeNotifier {
   Map<String, PlayingCard> previousRoundCards = {};
   Map<String, int> scores = {};
   Map<String, int> roundWins = {};
-  
+
   // Truco state
   bool isTrucoRequested = false;
   String? trucoRequestedBy;
@@ -84,7 +116,7 @@ class GameState extends ChangeNotifier {
       isWaiting = false;
       myId = socket.id;
       isMyTurn = data['firstPlayer'] == socket.id;
-      
+
       try {
         myCards = (data['cards'] as List)
             .map((card) => PlayingCard(
@@ -92,12 +124,12 @@ class GameState extends ChangeNotifier {
                   value: card['value'],
                 ))
             .toList();
-        
+
         scores = Map<String, int>.from(data['scores'] ?? {});
         roundWins = Map<String, int>.from(data['roundWins'] ?? {});
-        playedCards.clear();
-        previousRoundCards.clear();
-        
+        playedCards = {};
+        previousRoundCards = {};
+
         print('Game started. Is my turn? $isMyTurn');
         print('My ID: $myId');
         print('First player: ${data['firstPlayer']}');
@@ -106,7 +138,7 @@ class GameState extends ChangeNotifier {
         print('Error processing game start data: $e');
         print('Raw data received: $data');
       }
-      
+
       notifyListeners();
     });
 
@@ -132,14 +164,15 @@ class GameState extends ChangeNotifier {
     });
 
     socket.on('cardPlayed', (data) {
+      print('Card played: $data');
       playedCards[data['playerId']] = PlayingCard.fromJson(data['card']);
       notifyListeners();
     });
 
     socket.on('roundResult', (data) {
+      print('Round result: $data');
       roundWins = Map<String, int>.from(data['roundWins']);
       _handleRoundEnd();
-      notifyListeners();
     });
 
     socket.on('handComplete', (data) {
@@ -188,21 +221,21 @@ class GameState extends ChangeNotifier {
 
   void playCard(PlayingCard card) {
     if (!isMyTurn) return;
-    
+
     socket.emit('playCard', {
       'card': {'suit': card.suit, 'value': card.value}
     });
-    
+
     myCards.removeWhere((c) => c.suit == card.suit && c.value == card.value);
     notifyListeners();
   }
 
   void _handleRoundEnd() {
     if (playedCards.isNotEmpty) {
-      previousRoundCards = playedCards;
-      playedCards.clear();
+      previousRoundCards = Map.from(playedCards);
+      playedCards = {};
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   String getScoreText() {
@@ -391,6 +424,73 @@ class GameTable extends StatelessWidget {
             ),
           ).animate().fadeIn(duration: 500.ms).slideY(begin: -0.2, end: 0),
 
+          const SizedBox(height: 20),
+
+          // Mesa de jogo (área das cartas jogadas)
+          Container(
+            height: 200,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.green.shade800,
+              borderRadius: BorderRadius.circular(100),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Cartas da rodada anterior (mais escuras)
+                ...gameState.previousRoundCards.entries.map((entry) {
+                  final isMyCard = entry.key == gameState.myId;
+                  return Positioned(
+                    top: isMyCard ? 100 : 50,
+                    left: isMyCard ? 
+                      MediaQuery.of(context).size.width / 2 - 40 : 
+                      MediaQuery.of(context).size.width / 2 - 120,
+                    child: Transform.rotate(
+                      angle: isMyCard ? -0.2 : 0.2,
+                      child: Opacity(
+                        opacity: 0.5,
+                        child: entry.value.buildWidget(),
+                      ),
+                    ),
+                  );
+                }),
+
+                // Cartas da rodada atual
+                ...gameState.playedCards.entries.map((entry) {
+                  final isMyCard = entry.key == gameState.myId;
+                  return Positioned(
+                    top: isMyCard ? 80 : 30,
+                    left: isMyCard ? 
+                      MediaQuery.of(context).size.width / 2 : 
+                      MediaQuery.of(context).size.width / 2 - 80,
+                    child: Transform.rotate(
+                      angle: isMyCard ? -0.3 : 0.3,
+                      child: entry.value.buildWidget(),
+                    ),
+                  ).animate()
+                   .scale(
+                    duration: 300.ms,
+                    curve: Curves.easeOutBack,
+                   )
+                   .slideY(
+                    begin: isMyCard ? 1 : -1,
+                    duration: 300.ms,
+                    curve: Curves.easeOutBack,
+                   );
+                }),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
           // Game info area
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -431,65 +531,34 @@ class GameTable extends StatelessWidget {
 
           // Player cards area
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: gameState.myCards.map((card) {
-              final bool canPlay = gameState.isMyTurn && 
-                  !gameState.playedCards.containsKey(gameState.myId);
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: GestureDetector(
-                  onTap: canPlay
-                      ? () => gameState.playCard(card)
-                      : null,
-                  child: Container(
-                    width: 80,
-                    height: 120,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: canPlay
-                            ? TrucoTheme.secondaryColor
-                            : Colors.black54,
-                        width: 2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+            children: [
+              ...gameState.myCards.map((card) {
+                final bool canPlay = gameState.isMyTurn && 
+                    !gameState.playedCards.containsKey(gameState.myId);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: canPlay
+                        ? () => gameState.playCard(card)
+                        : null,
+                    child: card.buildWidget(),
+                  ),
+                );
+              }).toList(),
+              
+              if (gameState.isMyTurn && gameState.canRequestTruco && !gameState.isTrucoRequested)
+                Padding(
+                  padding: const EdgeInsets.only(left: 20),
+                  child: ElevatedButton(
+                    onPressed: gameState.requestTruco,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
                     ),
-                    child: Center(
-                      child: Text(
-                        '${card.value}${card.suit}',
-                        style: TextStyle(
-                          fontSize: 32,
-                          color: canPlay
-                              ? Colors.black
-                              : Colors.black54,
-                        ),
-                      ),
-                    ),
+                    child: const Text('TRUCO!'),
                   ),
                 ),
-              );
-            }).toList(),
-            
-            if (gameState.isMyTurn && gameState.canRequestTruco && !gameState.isTrucoRequested)
-              Padding(
-                padding: const EdgeInsets.only(left: 20),
-                child: ElevatedButton(
-                  onPressed: gameState.requestTruco,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('TRUCO!'),
-                ),
-              ),
+            ],
           ),
         ],
       ),
